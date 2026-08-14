@@ -211,4 +211,4 @@ public/sw.js           manual service worker (PWA + notifications)
 
 ## License
 
-No license granted — all rights reserved.
+[MIT](LICENSE) © Shivansh Goel
