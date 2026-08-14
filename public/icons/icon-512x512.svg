@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="80" fill="#0F0F0F"/>
+  <circle cx="256" cy="210" r="90" fill="none" stroke="#F59E0B" stroke-width="12"/>
+  <path d="M256 130 L272 185 L330 185 L283 218 L299 273 L256 240 L213 273 L229 218 L182 185 L240 185 Z" fill="#F59E0B"/>
+  <text x="256" y="410" font-family="Arial" font-size="64" font-weight="bold" fill="#F59E0B" text-anchor="middle">DareStake</text>
+</svg>

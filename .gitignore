@@ -39,3 +39,15 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+.vercel
+.env*
+
+# Playwright MCP session artifacts
+.playwright-mcp/
+
+# local dev logs
+dev-out.log
+
+# agent-local settings
+.kiro/

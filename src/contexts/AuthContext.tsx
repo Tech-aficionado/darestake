@@ -6,14 +6,13 @@ import {
   useEffect,
   useState,
   useCallback,
+  useRef,
   ReactNode,
 } from "react";
 import {
   User,
   onAuthStateChanged,
   signInWithPopup,
-  signInWithRedirect,
-  getRedirectResult,
   signOut as firebaseSignOut,
   GoogleAuthProvider,
 } from "firebase/auth";
@@ -43,14 +42,14 @@ const AuthContext = createContext<AuthContextType>({
 });
 
 /**
- * Detect if we're on a mobile/tablet device.
- * Mobile browsers almost always block popups, so we go straight to redirect.
+ * Detect PWA standalone mode.
  */
-function isMobileDevice(): boolean {
+function isPWAStandalone(): boolean {
   if (typeof window === "undefined") return false;
-  return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
-    navigator.userAgent
-  ) || (window.innerWidth <= 768);
+  return (
+    window.matchMedia("(display-mode: standalone)").matches ||
+    (window.navigator as unknown as { standalone?: boolean }).standalone === true
+  );
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -60,10 +59,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     signInLoading: false,
     error: null,
   });
+  const signInTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Listen for auth state changes
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
+      if (signInTimeoutRef.current) {
+        clearTimeout(signInTimeoutRef.current);
+        signInTimeoutRef.current = null;
+      }
       setState((prev) => ({
         ...prev,
         user,
@@ -71,93 +74,68 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         signInLoading: false,
       }));
     });
-    return () => unsubscribe();
-  }, []);
-
-  // Handle redirect result (for mobile browsers that block popups)
-  useEffect(() => {
-    // If we're returning from a redirect, show loading state
-    const hasRedirectPending = sessionStorage.getItem("auth_redirect_pending");
-    if (hasRedirectPending) {
-      setState((prev) => ({ ...prev, signInLoading: true }));
-    }
-
-    getRedirectResult(auth)
-      .then((result) => {
-        sessionStorage.removeItem("auth_redirect_pending");
-        if (result) {
-          const credential = GoogleAuthProvider.credentialFromResult(result);
-          if (credential?.accessToken) {
-            setGoogleAccessToken(credential.accessToken);
-          }
-        }
-      })
-      .catch((error) => {
-        sessionStorage.removeItem("auth_redirect_pending");
-        console.error("Redirect result error:", error);
-        // Don't show error for "no redirect result" -- that's normal on fresh page loads
-        if (error.code !== "auth/popup-closed-by-user") {
-          setState((prev) => ({
-            ...prev,
-            error: getErrorMessage(error.code),
-            signInLoading: false,
-          }));
-        }
-      });
+    return () => {
+      unsubscribe();
+      if (signInTimeoutRef.current) clearTimeout(signInTimeoutRef.current);
+    };
   }, []);
 
   const signIn = useCallback(async () => {
-    setState((prev) => ({ ...prev, signInLoading: true, error: null }));
-
-    // On mobile, go straight to redirect -- popups are almost always blocked
-    if (isMobileDevice()) {
-      try {
-        sessionStorage.setItem("auth_redirect_pending", "true");
-        await signInWithRedirect(auth, googleProvider);
-        return; // Page will reload after redirect
-      } catch (error: unknown) {
-        const firebaseError = error as { code?: string; message?: string };
-        console.error("Redirect sign-in error:", firebaseError);
-        sessionStorage.removeItem("auth_redirect_pending");
-        setState((prev) => ({
-          ...prev,
-          error: getErrorMessage(firebaseError.code),
-          signInLoading: false,
-        }));
-      }
+    // In PWA standalone mode: navigate to dedicated /login page
+    // That page handles redirect flow in the same window
+    if (isPWAStandalone()) {
+      window.location.href = "/login";
       return;
     }
 
-    // Desktop: try popup first, fall back to redirect
+    // Regular browser: use popup
+    setState((prev) => ({ ...prev, signInLoading: true, error: null }));
+
+    signInTimeoutRef.current = setTimeout(() => {
+      setState((prev) => {
+        if (prev.signInLoading && !prev.user) {
+          return { ...prev, signInLoading: false, error: null };
+        }
+        return prev;
+      });
+    }, 30000);
+
     try {
       const result = await signInWithPopup(auth, googleProvider);
+
+      if (signInTimeoutRef.current) {
+        clearTimeout(signInTimeoutRef.current);
+        signInTimeoutRef.current = null;
+      }
+
       const credential = GoogleAuthProvider.credentialFromResult(result);
       if (credential?.accessToken) {
         setGoogleAccessToken(credential.accessToken);
       }
     } catch (error: unknown) {
-      const firebaseError = error as { code?: string; message?: string };
-      console.error("Sign in error:", firebaseError);
+      if (signInTimeoutRef.current) {
+        clearTimeout(signInTimeoutRef.current);
+        signInTimeoutRef.current = null;
+      }
 
-      // If popup was blocked or closed, fall back to redirect
-      if (
-        firebaseError.code === "auth/popup-blocked" ||
-        firebaseError.code === "auth/popup-closed-by-user" ||
-        firebaseError.code === "auth/cancelled-popup-request"
-      ) {
-        try {
-          sessionStorage.setItem("auth_redirect_pending", "true");
-          await signInWithRedirect(auth, googleProvider);
-          return;
-        } catch (redirectError) {
-          console.error("Redirect fallback failed:", redirectError);
-          sessionStorage.removeItem("auth_redirect_pending");
-        }
+      const firebaseError = error as { code?: string; message?: string };
+      console.error("Sign in error:", firebaseError.code, firebaseError.message);
+
+      if (firebaseError.code === "auth/popup-closed-by-user" ||
+          firebaseError.code === "auth/cancelled-popup-request") {
+        setState((prev) => ({ ...prev, signInLoading: false, error: null }));
+        return;
+      }
+
+      // If popup blocked, go to login page as fallback
+      if (firebaseError.code === "auth/popup-blocked") {
+        window.location.href = "/login";
+        return;
       }
 
       setState((prev) => ({
         ...prev,
-        error: getErrorMessage(firebaseError.code),
+        error: `Sign-in failed: ${firebaseError.code || firebaseError.message || "unknown"}`,
         signInLoading: false,
       }));
     }
@@ -204,30 +182,4 @@ export function useAuth() {
     throw new Error("useAuth must be used within an AuthProvider");
   }
   return context;
-}
-
-function getErrorMessage(code?: string): string {
-  switch (code) {
-    case "auth/popup-blocked":
-      return "Popup was blocked. Trying redirect...";
-    case "auth/popup-closed-by-user":
-    case "auth/cancelled-popup-request":
-      return "Sign-in was cancelled.";
-    case "auth/unauthorized-domain":
-      return "This domain is not authorized for sign-in. Contact the app owner.";
-    case "auth/network-request-failed":
-      return "Network error. Check your connection.";
-    case "auth/too-many-requests":
-      return "Too many attempts. Try again later.";
-    case "auth/user-disabled":
-      return "This account has been disabled.";
-    case "auth/internal-error":
-      return "Something went wrong. Please try again.";
-    case "auth/operation-not-allowed":
-      return "Google sign-in is not enabled for this app.";
-    case "auth/credential-already-in-use":
-      return "This account is already linked to another user.";
-    default:
-      return `Sign-in failed (${code || "unknown"}). Please try again.`;
-  }
 }

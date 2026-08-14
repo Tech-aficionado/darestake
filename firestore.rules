@@ -1,0 +1,136 @@
+rules_version = '2';
+
+// DareStake — 2-person mutual accountability app.
+//
+// Model: almost all data belongs to a *pair*. A signed-in user may touch a
+// document only when that document's pairId equals the pairId on their own
+// user doc. Pair membership is therefore the single authorization primitive.
+//
+// Why some rules are deliberately loose:
+//   * users: any signed-in user can READ a profile, because during pairing the
+//     accepter must read the inviter's doc *before* the two are pair-linked.
+//     Enumeration is still blocked (`list` is denied) — you must know a UID.
+//   * pairInvites: knowing the 6-char code IS the credential, and the accepter
+//     is a stranger to the inviter at that moment, so reads can't be scoped.
+//
+// NOTE: helper get()s bill as document reads. With 2 users that is negligible,
+// but this design would need revisiting at scale.
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    // The caller's own user document. Returns null if it doesn't exist yet,
+    // which makes dependent rules deny — the safe direction.
+    function myUser() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
+
+    function myPairId() {
+      return myUser().data.pairId;
+    }
+
+    // True only when pid is a real pairId matching the caller's own.
+    // The null guard matters: two *unpaired* users both have pairId == null,
+    // and without it null == null would let strangers share a namespace.
+    function inMyPair(pid) {
+      return signedIn()
+        && pid != null
+        && myUser() != null
+        && myPairId() != null
+        && pid == myPairId();
+    }
+
+    // ── users ────────────────────────────────────────────────────────────────
+    match /users/{uid} {
+      // Single-doc reads only. `list` is denied so the collection cannot be
+      // enumerated for emails/UIDs.
+      allow get: if signedIn();
+      allow list: if false;
+
+      allow create: if signedIn() && uid == request.auth.uid;
+
+      // Three legitimate writers:
+      //  1. yourself
+      //  2. your partner — the penalty sweep and breakStreak run client-side
+      //     and write to whichever member missed, which may not be the caller
+      //  3. an as-yet-unpaired user being claimed during acceptPairInvite
+      allow update: if signedIn() && (
+        uid == request.auth.uid
+        || inMyPair(resource.data.pairId)
+        || resource.data.pairedWith == null
+      );
+
+      // Accounts are never deleted by the client.
+      allow delete: if false;
+    }
+
+    // ── pairs ────────────────────────────────────────────────────────────────
+    match /pairs/{pairId} {
+      allow get: if signedIn() && request.auth.uid in resource.data.members;
+      allow create: if signedIn()
+        && request.auth.uid in request.resource.data.members;
+      allow update: if signedIn() && request.auth.uid in resource.data.members;
+      // Never enumerated; unpair sets isActive:false instead of deleting.
+      allow list, delete: if false;
+    }
+
+    // ── pairInvites ──────────────────────────────────────────────────────────
+    match /pairInvites/{code} {
+      allow get: if signedIn();
+      // Can't be listed — otherwise every open code would be harvestable.
+      allow list: if false;
+      allow create: if signedIn()
+        && request.resource.data.fromUid == request.auth.uid;
+      // Deleted by the ACCEPTER as it is consumed, not by the creator.
+      allow delete: if signedIn();
+      allow update: if false;
+    }
+
+    // ── tasks ────────────────────────────────────────────────────────────────
+    match /tasks/{taskId} {
+      allow get: if inMyPair(resource.data.pairId);
+      // Queries are pairId-filtered, so every returned doc satisfies this.
+      allow list: if inMyPair(resource.data.pairId);
+      allow create: if inMyPair(request.resource.data.pairId);
+      // Both sides checked so a task can't be moved into another pair.
+      allow update: if inMyPair(resource.data.pairId)
+        && inMyPair(request.resource.data.pairId);
+      allow delete: if inMyPair(resource.data.pairId);
+    }
+
+    // ── goldJars (doc id == pairId) ───────────────────────────────────────────
+    match /goldJars/{jarId} {
+      allow get: if inMyPair(jarId);
+      allow list: if false;
+      allow create: if inMyPair(jarId)
+        && inMyPair(request.resource.data.pairId);
+      allow update: if inMyPair(jarId);
+      allow delete: if false;
+    }
+
+    // ── goldJarEntries ───────────────────────────────────────────────────────
+    match /goldJarEntries/{entryId} {
+      allow get: if inMyPair(resource.data.pairId);
+      allow list: if inMyPair(resource.data.pairId);
+      allow create: if inMyPair(request.resource.data.pairId);
+      // The ledger is append-only: a fine can't be edited or erased.
+      allow update, delete: if false;
+    }
+
+    // ── streaks (doc id == `${userId}_${pairId}`) ─────────────────────────────
+    match /streaks/{streakId} {
+      allow get: if inMyPair(resource.data.pairId);
+      allow list: if false;
+      allow create: if inMyPair(request.resource.data.pairId);
+      allow update: if inMyPair(resource.data.pairId)
+        && inMyPair(request.resource.data.pairId);
+      allow delete: if false;
+    }
+
+    // Anything not matched above is denied.
+  }
+}
