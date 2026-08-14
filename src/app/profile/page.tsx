@@ -15,6 +15,7 @@ import {
   BellOff,
   Shield,
   UserPlus,
+  Coins,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import {
@@ -24,7 +25,13 @@ import {
   StreakBadge,
   BottomNav,
 } from "@/components/ui";
-import { getUser, unpair } from "@/lib/firestore";
+import { getUser, unpair, getPair, updateMaxFine } from "@/lib/firestore";
+import {
+  fineRange,
+  DEFAULT_MAX_FINE,
+  FINE_LIMIT_MIN,
+  FINE_LIMIT_MAX,
+} from "@/lib/firestore-schema";
 import {
   requestNotificationPermission,
   getNotificationPermission,
@@ -68,6 +75,19 @@ export default function ProfilePage() {
     { ok: boolean; message: string } | null
   >(null);
 
+  // Pair-level max fine. Kept as a string so the field can be cleared while
+  // typing without snapping back to a number.
+  const [maxFine, setMaxFine] = useState<number>(DEFAULT_MAX_FINE);
+  const [maxFineInput, setMaxFineInput] = useState<string>(
+    String(DEFAULT_MAX_FINE)
+  );
+  const [savingFine, setSavingFine] = useState(false);
+  const [fineMsg, setFineMsg] = useState<{ ok: boolean; text: string } | null>(
+    null
+  );
+
+  const currentRange = fineRange(maxFine);
+
   useEffect(() => {
     if (!user) return;
 
@@ -83,6 +103,19 @@ export default function ProfilePage() {
                 photoURL: partnerData.photoURL,
               }
             : null;
+        }
+
+        // Load the shared stake. Falls back to the default for pairs created
+        // before this setting existed.
+        if (userData?.pairId) {
+          try {
+            const pair = await getPair(userData.pairId);
+            const resolved = pair?.maxFine ?? DEFAULT_MAX_FINE;
+            setMaxFine(resolved);
+            setMaxFineInput(String(resolved));
+          } catch (err) {
+            console.error("Could not load pair stakes:", err);
+          }
         }
         setProfile({
           displayName: user.displayName || "User",
@@ -167,6 +200,31 @@ export default function ProfilePage() {
       );
     } catch (err) {
       console.error("Notification disable failed:", err);
+    }
+  };
+
+  const handleSaveMaxFine = async () => {
+    if (!user || !profile?.pairId) return;
+    setSavingFine(true);
+    setFineMsg(null);
+    try {
+      const parsed = Number(maxFineInput);
+      await updateMaxFine(profile.pairId, user.uid, parsed);
+      const applied = Math.floor(parsed);
+      setMaxFine(applied);
+      setMaxFineInput(String(applied));
+      const r = fineRange(applied);
+      setFineMsg({
+        ok: true,
+        text: `Saved. Missed dares now cost ₹${r.min}–${r.max}.`,
+      });
+    } catch (e) {
+      setFineMsg({
+        ok: false,
+        text: (e as Error)?.message ?? "Could not save that.",
+      });
+    } finally {
+      setSavingFine(false);
     }
   };
 
@@ -497,6 +555,81 @@ export default function ProfilePage() {
             </div>
           </GlassCard>
         </motion.div>
+
+        {/* Stakes -- pair-level, so either partner can change it */}
+        {profile.partner && (
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.45 }}
+          >
+            <GlassCard className="p-5">
+              <h2 className="text-xs font-semibold text-[#737373] uppercase tracking-wider mb-4">
+                Stakes
+              </h2>
+
+              <div className="flex items-start gap-3 mb-4">
+                <div className="w-9 h-9 rounded-lg bg-[#FF6B35]/10 flex items-center justify-center shrink-0">
+                  <Coins className="w-4 h-4 text-[#FF6B35]" />
+                </div>
+                <div>
+                  <p className="text-sm text-[#F5F5F5] font-medium">
+                    Maximum fine
+                  </p>
+                  <p className="text-[11px] text-[#737373] leading-relaxed">
+                    A missed dare costs a random amount up to this much. Shared
+                    with your partner — either of you can change it.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <div className="relative flex-1">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-[#737373]">
+                    ₹
+                  </span>
+                  <input
+                    type="number"
+                    inputMode="numeric"
+                    min={FINE_LIMIT_MIN}
+                    max={FINE_LIMIT_MAX}
+                    value={maxFineInput}
+                    onChange={(e) => {
+                      setMaxFineInput(e.target.value);
+                      setFineMsg(null);
+                    }}
+                    className="w-full bg-[#141414] border border-[#2A2A2A] rounded-xl pl-7 pr-3 py-2.5 text-sm text-[#F5F5F5] focus:outline-none focus:border-[#FF6B35] transition-colors"
+                  />
+                </div>
+                <button
+                  onClick={handleSaveMaxFine}
+                  disabled={savingFine || maxFineInput.trim() === ""}
+                  className="px-4 py-2.5 rounded-xl bg-[#FF6B35] text-[#0D0D0D] text-sm font-semibold disabled:opacity-40 transition-opacity"
+                >
+                  {savingFine ? "Saving…" : "Save"}
+                </button>
+              </div>
+
+              <p className="text-[11px] text-[#737373] mt-2">
+                Current range:{" "}
+                <span className="text-[#F5F5F5]">
+                  ₹{currentRange.min}–{currentRange.max}
+                </span>{" "}
+                per missed dare
+              </p>
+
+              {fineMsg && (
+                <p
+                  className={`text-[11px] mt-2 leading-relaxed ${
+                    fineMsg.ok ? "text-[#22C55E]" : "text-red-400"
+                  }`}
+                >
+                  {fineMsg.text}
+                </p>
+              )}
+            </GlassCard>
+          </motion.div>
+        )}
 
         {/* Danger Zone */}
         <motion.div

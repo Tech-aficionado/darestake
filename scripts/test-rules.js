@@ -260,6 +260,24 @@ const cases = [
       incoming: { id: P1, members: [ALICE, BOB], isActive: false },
     }
   ),
+  tc(
+    "either partner may change the shared max fine",
+    "ALLOW",
+    { auth: { uid: BOB }, path: `${DB}/pairs/${P1}`, method: "update" },
+    {
+      existing: { id: P1, members: [ALICE, BOB], isActive: true, maxFine: 50 },
+      incoming: { id: P1, members: [ALICE, BOB], isActive: true, maxFine: 500 },
+    }
+  ),
+  tc(
+    "an outsider cannot change a pair's stakes",
+    "DENY",
+    { auth: { uid: EVE }, path: `${DB}/pairs/${P1}`, method: "update" },
+    {
+      existing: { id: P1, members: [ALICE, BOB], isActive: true, maxFine: 50 },
+      incoming: { id: P1, members: [ALICE, BOB], isActive: true, maxFine: 1 },
+    }
+  ),
 
   // ── pairInvites ──────────────────────────────────────────────────────────
   tc(

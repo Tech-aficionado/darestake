@@ -24,6 +24,9 @@ import {
   GoldJar,
   GoldJarEntry,
   Streak,
+  fineRange,
+  FINE_LIMIT_MIN,
+  FINE_LIMIT_MAX,
 } from "./firestore-schema";
 import { todayIST, yesterdayIST, daysAgoIST, endOfDayIST } from "./ist";
 
@@ -164,6 +167,42 @@ export async function getPair(pairId: string): Promise<Pair | null> {
   const pairRef = doc(db, "pairs", pairId);
   const snap = await getDoc(pairRef);
   return snap.exists() ? (snap.data() as Pair) : null;
+}
+
+/**
+ * Set the pair's maximum fine. Stored on the pair rather than the user because
+ * the stakes are a shared agreement and the jar is shared -- both partners must
+ * see the same number, and either may change it.
+ */
+export async function updateMaxFine(
+  pairId: string,
+  uid: string,
+  maxFine: number
+): Promise<void> {
+  if (!Number.isFinite(maxFine)) {
+    throw new Error("Enter a number.");
+  }
+  const value = Math.floor(maxFine);
+  if (value < FINE_LIMIT_MIN || value > FINE_LIMIT_MAX) {
+    throw new Error(
+      `Pick a max fine between ₹${FINE_LIMIT_MIN} and ₹${FINE_LIMIT_MAX.toLocaleString("en-IN")}.`
+    );
+  }
+
+  const pairRef = doc(db, "pairs", pairId);
+
+  // Membership-checked in a transaction, matching how unpair works: the
+  // Firestore rules already require membership, but failing here gives a real
+  // message instead of an opaque permission error.
+  await runTransaction(db, async (tx) => {
+    const snap = await tx.get(pairRef);
+    if (!snap.exists()) throw new Error("Pair not found");
+    const pair = snap.data() as Pair;
+    if (!pair.members.includes(uid)) {
+      throw new Error("You are not a member of this pair.");
+    }
+    tx.update(pairRef, { maxFine: value });
+  });
 }
 
 export async function unpair(pairId: string, uid: string): Promise<void> {
@@ -568,6 +607,13 @@ export async function checkAndApplyPenalties(pairId: string): Promise<number> {
   // Ensure jar exists
   await getOrCreateJar(pairId);
 
+  // Read the pair's configured stake once, outside the loop, rather than per
+  // missed task -- the value can't change mid-sweep in any way that matters.
+  const pairSnap = await getDoc(doc(db, "pairs", pairId));
+  const { min: minFine, max: maxFine } = fineRange(
+    pairSnap.exists() ? (pairSnap.data() as Pair).maxFine : undefined
+  );
+
   for (const taskDoc of snap.docs) {
     const task = { id: taskDoc.id, ...taskDoc.data() } as DailyTask;
     const taskRef = doc(db, "tasks", task.id);
@@ -593,8 +639,9 @@ export async function checkAndApplyPenalties(pairId: string): Promise<number> {
 
     if (!claimed) continue;
 
-    // Random penalty ₹10-50
-    const amount = Math.floor(Math.random() * 41) + 10;
+    // Random penalty within the pair's configured range (inclusive).
+    const amount =
+      Math.floor(Math.random() * (maxFine - minFine + 1)) + minFine;
 
     // A miss breaks the streak. Previously nothing reset it on a miss -- the
     // streak only ever changed on completion, so a user who missed days kept
