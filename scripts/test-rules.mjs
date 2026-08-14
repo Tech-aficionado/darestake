@@ -2,11 +2,11 @@
  * Evaluates firestore.rules against Google's real Rules engine via the
  * firebaserules projects:test API. No emulator / JDK required.
  *
- * Usage: node scripts/test-rules.js
+ * Usage: node scripts/test-rules.mjs
  */
-const fs = require("fs");
-const os = require("os");
-const path = require("path");
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 
 const PROJECT = "darestake-app2";
 const DB = "/databases/(default)/documents";

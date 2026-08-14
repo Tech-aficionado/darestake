@@ -23,9 +23,11 @@ export default function JarPage() {
   const [entries, setEntries] = useState<GoldJarEntry[]>([]);
   const [jarLoading, setJarLoading] = useState(true);
 
+  // Derive effective loading — when there's no pairId we're not loading.
+  const isJarLoading = jarLoading && !!userData?.pairId;
+
   useEffect(() => {
     if (!userData?.pairId) {
-      setJarLoading(false);
       return;
     }
 
@@ -47,7 +49,7 @@ export default function JarPage() {
     };
   }, [userData?.pairId]);
 
-  if (loading || jarLoading) {
+  if (loading || isJarLoading) {
     return (
       <div className="min-h-dvh pb-24 px-4 pt-6 bg-[#0D0D0D]">
         <motion.header

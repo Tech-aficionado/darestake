@@ -34,9 +34,11 @@ export default function InsightsPage() {
   const [tasks, setTasks] = useState<DailyTask[]>([]);
   const [tasksLoading, setTasksLoading] = useState(true);
 
+  // Derive effective loading — when there's no pairId we're not loading.
+  const isTasksLoading = tasksLoading && !!userData?.pairId;
+
   useEffect(() => {
     if (!userData?.pairId) {
-      setTasksLoading(false);
       return;
     }
     getTasksByPair(userData.pairId, 50).then((t) => {
@@ -126,7 +128,7 @@ export default function InsightsPage() {
   }, [tasks, userData]);
 
   // Skeleton
-  if (loading || tasksLoading) {
+  if (loading || isTasksLoading) {
     return (
       <div className="min-h-dvh pb-24 px-4 pt-6 bg-[#0D0D0D]">
         <header className="mb-6">

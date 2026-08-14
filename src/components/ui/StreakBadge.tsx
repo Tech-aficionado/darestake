@@ -2,7 +2,7 @@
 
 import { motion, AnimatePresence } from "framer-motion";
 import { Flame } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 interface StreakBadgeProps {
   streak: number;
@@ -18,18 +18,18 @@ interface FireParticle {
 }
 
 function FireParticles({ intensity }: { intensity: number }) {
-  const [particles, setParticles] = useState<FireParticle[]>([]);
-
-  useEffect(() => {
+  // Derive particles from intensity using useMemo instead of useState+useEffect
+  // to avoid synchronous setState in an effect (react-hooks/set-state-in-effect).
+  // Use a seeded approach so the output is deterministic for a given intensity.
+  const particles = useMemo<FireParticle[]>(() => {
     const count = Math.min(intensity, 8);
-    const newParticles: FireParticle[] = Array.from({ length: count }, (_, i) => ({
+    return Array.from({ length: count }, (_, i) => ({
       id: i,
-      x: (Math.random() - 0.5) * 24,
-      delay: Math.random() * 1.5,
-      size: 2 + Math.random() * 3,
-      duration: 1 + Math.random() * 0.8,
+      x: ((((i * 7 + 3) % 11) / 11) - 0.5) * 24,
+      delay: (((i * 13 + 5) % 17) / 17) * 1.5,
+      size: 2 + (((i * 11 + 7) % 13) / 13) * 3,
+      duration: 1 + (((i * 17 + 11) % 19) / 19) * 0.8,
     }));
-    setParticles(newParticles);
   }, [intensity]);
 
   return (
@@ -46,7 +46,7 @@ function FireParticles({ intensity }: { intensity: number }) {
             x: p.x,
           }}
           animate={{
-            y: [-4, -20 - Math.random() * 12],
+            y: [-4, -20 - p.size * 2.4],
             opacity: [0, 0.9, 0],
             scale: [0.5, 1, 0.3],
           }}

@@ -87,9 +87,11 @@ export default function Home() {
   const { userData, loading: dataLoading, refresh } = useUserData();
   const [todayTask, setTodayTask] = useState<DailyTask | null>(null);
   const [partnerTask, setPartnerTask] = useState<DailyTask | null>(null);
-  const [taskLoading, setTaskLoading] = useState(true);
   const [completing, setCompleting] = useState(false);
   const [initialLoad, setInitialLoad] = useState(true);
+  // Track which subscription key has delivered data. When dependencies change,
+  // this goes stale and isTaskLoading derives to true until the callback fires.
+  const [loadedKey, setLoadedKey] = useState<string | null>(null);
 
   // The IST date the dashboard is currently showing. subscribeToTodayTask
   // resolves "today" once when it subscribes, so without this the listener
@@ -119,18 +121,25 @@ export default function Home() {
   }, []);
   const router = useRouter();
 
+  // Derive effective loading: when there's no pairId the subscription never
+  // fires, so we're not actually loading task data — report false immediately
+  // without calling setState inside the effect (satisfies react-hooks/set-state-in-effect).
+  // Also true when subscription dependencies changed but callback hasn't fired yet.
+  const subscriptionKey = userData?.pairId ? `${userData.pairId}:${dayKey}` : null;
+  const isTaskLoading = !!userData?.pairId && loadedKey !== subscriptionKey;
+
   useEffect(() => {
     if (!userData?.pairId) {
-      setTaskLoading(false);
       return;
     }
-    setTaskLoading(true);
-    setInitialLoad(true);
+    // Reset refs for this new subscription cycle (no setState needed —
+    // isTaskLoading derives from loadedKey !== subscriptionKey).
     initialLoadRef.current = true;
     todayTaskRef.current = null;
 
     let deadlineCleanup: (() => void) | null = null;
 
+    const currentKey = `${userData.pairId}:${dayKey}`;
     const unsub = subscribeToTodayTask(
       userData.pairId,
       userData.uid,
@@ -142,7 +151,7 @@ export default function Home() {
 
         todayTaskRef.current = task;
         setTodayTask(task);
-        setTaskLoading(false);
+        setLoadedKey(currentKey);
 
         // Notify when partner assigns a NEW task (not on initial page load)
         if (isNewTask && task.assignedBy !== userData.uid) {
@@ -343,7 +352,7 @@ export default function Home() {
       </div>
 
       {/* Today's Task */}
-      {taskLoading ? (
+      {isTaskLoading ? (
         <GlassCard className="p-6 mb-6">
           <div className="animate-pulse space-y-3">
             <div className="h-4 bg-white/10 rounded w-1/3" />
