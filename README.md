@@ -1,6 +1,6 @@
 # DareStake
 
-**Mutual accountability with money on the line.** Two people assign each other a daily dare. Miss the deadline and you're automatically fined ₹10–50 into a shared "Gold Jar" you can both see.
+**Mutual accountability with money on the line.** Two people assign each other a daily dare. Miss the deadline and you're automatically fined into a shared "Gold Jar" you can both see — a random amount up to a ceiling the two of you agree on (₹50 by default).
 
 Built as a real two-person app, not a demo — a PWA you install on your phone, with time-stamped check-ins, photo proof, and a dispute mechanism for when your partner doesn't believe you.
 
@@ -12,9 +12,9 @@ Built as a real two-person app, not a demo — a PWA you install on your phone, 
 
 1. **Pair up** — one person generates a 6-character invite code, the other enters it. Strictly two people per pair.
 2. **Assign a dare** — pick from 36 templates across 5 categories, or write your own. Assign it to your partner or to yourself.
-3. **Set the stakes** — dares default to a midnight IST deadline. Add a *check-in time* (e.g. "07:00") and the deadline becomes that time plus a 30-minute grace window.
+3. **Set the stakes** — dares default to a midnight IST deadline. Add a *check-in time* (e.g. "07:00") and the deadline becomes that time plus a 30-minute grace window. Either partner can set the **maximum fine** in Profile → Stakes; it applies to both of you, since the jar is shared.
 4. **Complete it** — mark it done before the deadline. Optionally attach photo proof.
-5. **Or pay** — a penalty engine sweeps for missed dares and moves a random ₹10–50 into the shared Gold Jar. Your streak resets.
+5. **Or pay** — a penalty engine sweeps for missed dares and moves a random amount, up to your configured maximum, into the shared Gold Jar. Your streak resets.
 6. **Witness mode** — your partner can dispute a completion with "👀 Prove it", which demands photo proof before the dispute can be settled.
 
 Reactions (🔥 💪 👏 😤), streaks, weekly summaries, and an insights page with day-of-week failure patterns round it out.
@@ -74,6 +74,24 @@ It also sweeps a 14-day lookback window rather than just yesterday, so skipping 
 
 Task documents use a deterministic ID — `${pairId}_${assignedTo}_${date}` — claimed in a transaction. Uniqueness is structural rather than checked in the UI, because a client-side transaction can't run queries (only `tx.get` on a known ref), so a query-based guard could never be atomic. Two tabs, a double-tap, or a retry after a timeout that actually succeeded can no longer produce a duplicate (and therefore a double fine).
 
+### The stakes belong to the pair, not the user
+
+`maxFine` lives on the **pair** document rather than either user's, because the
+jar is shared: two people cannot meaningfully be playing for different amounts
+into the same pot. Either partner can change it, and both immediately see the
+same number.
+
+The floor stays at ₹10 but is *clamped down* when the configured maximum is
+lower — otherwise a max of ₹5 would invert the range and
+`Math.random() * (max - min + 1)` would go negative, producing nonsense fines
+against real money. `fineRange()` in
+[`src/lib/firestore-schema.ts`](src/lib/firestore-schema.ts) is the single place
+that resolves this, and it's unit-tested for inversion, fractional input, and
+out-of-bounds values.
+
+Pairs created before the setting existed have no `maxFine` field at all, so it's
+optional and falls back to the ₹50 default rather than requiring a migration.
+
 ### Security rules are pair-scoped and tested
 
 Every document belongs to a *pair*, and [`firestore.rules`](firestore.rules) grants access only when the document's `pairId` matches the `pairId` on the caller's own user doc. Beyond that:
@@ -85,7 +103,7 @@ Every document belongs to a *pair*, and [`firestore.rules`](firestore.rules) gra
 
 Two places are deliberately open, documented inline: any signed-in user can `get` a profile (the accepter must read the inviter's doc *before* they're linked, so it can't be pair-scoped), and invite reads are open because knowing the 6-character code *is* the credential.
 
-These rules are verified by 34 assertions run against Google's real Rules engine — see [Testing](#testing).
+These rules are verified by 36 assertions run against Google's real Rules engine — see [Testing](#testing).
 
 ### Auth is redirect-only on the login page
 
@@ -142,9 +160,9 @@ npm run dev
 ## Testing
 
 ```bash
-npm test              # 52 unit tests (Vitest) — IST date module
+npm test              # 60 unit tests (Vitest) — IST dates + fine range
 npm run test:watch    # watch mode
-npm run test:rules    # 34 Firestore security-rule assertions
+npm run test:rules    # 36 Firestore security-rule assertions
 ```
 
 **`npm test`** covers `src/lib/ist.ts`: midnight boundaries, month/year rollovers, leap days, the 00:00–05:30 window the original bug lived in, and cross-function invariants. Every assertion is an absolute ISO instant or fixed date string, so the suite is timezone-independent by construction — reintroduce a `getTimezoneOffset()` term and it fails on any machine whose local offset isn't zero.
@@ -177,7 +195,8 @@ src/
     ist.test.ts
     firestore.ts       writes, penalty engine, pairing, streaks
     firestore-realtime.ts  onSnapshot subscriptions
-    firestore-schema.ts    types + status derivation
+    firestore-schema.ts    types, status derivation, fineRange()
+    fine-range.test.ts
     notifications.ts   permission, delivery, deadline reminders
 scripts/
   test-rules.js        security-rules test suite
@@ -191,7 +210,7 @@ public/sw.js           manual service worker (PWA + notifications)
 | Collection | Key | Notes |
 |---|---|---|
 | `users` | uid | profile, `pairId`, `streak`, `totalPenalties` |
-| `pairs` | auto | `members: [uid, uid]`, `isActive` |
+| `pairs` | auto | `members: [uid, uid]`, `isActive`, `maxFine` |
 | `pairInvites` | 6-char code | expires after 24h, deleted on use |
 | `tasks` | `${pairId}_${assignedTo}_${date}` | deterministic — enforces one per day |
 | `goldJars` | pairId | running total |
@@ -212,3 +231,4 @@ public/sw.js           manual service worker (PWA + notifications)
 ## License
 
 [MIT](LICENSE) © Shivansh Goel
+
