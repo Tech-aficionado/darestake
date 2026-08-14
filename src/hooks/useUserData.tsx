@@ -105,8 +105,19 @@ export function UserDataProvider({ children }: { children: ReactNode }) {
   // Derive effective values: when user is absent, data is null and not loading.
   // When partner isn't paired, partnerData is null. This avoids synchronous
   // setState in effect guards (satisfies react-hooks/set-state-in-effect).
-  const effectiveUserData = user ? userData : null;
-  const effectivePartnerData = (user && userData?.pairedWith) ? partnerData : null;
+  //
+  // Both data values are additionally gated on `loadedUid === user.uid`. The
+  // subscription callback writes `userData` and `loadedUid` together, so that
+  // equality is what proves the held document actually belongs to the signed-in
+  // account. Without it, signing out and back in as a DIFFERENT user exposes the
+  // previous user's document for the window before the new subscription first
+  // fires, because nothing clears `userData` on sign-out any more. Consumers
+  // that read `userData` without checking `loading` would otherwise subscribe
+  // to, and render, the wrong pair.
+  const isCurrentUserLoaded = !!user && loadedUid === user.uid;
+  const effectiveUserData = isCurrentUserLoaded ? userData : null;
+  const effectivePartnerData =
+    isCurrentUserLoaded && userData?.pairedWith ? partnerData : null;
   const effectiveLoading = !!user && loadedUid !== user.uid;
 
   return (
