@@ -83,12 +83,11 @@ function CheckInDeadline({ task }: { task: DailyTask }) {
 }
 
 export default function Home() {
-  const { user, loading: authLoading, signIn } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const { userData, loading: dataLoading, refresh } = useUserData();
   const [todayTask, setTodayTask] = useState<DailyTask | null>(null);
   const [partnerTask, setPartnerTask] = useState<DailyTask | null>(null);
   const [completing, setCompleting] = useState(false);
-  const [initialLoad, setInitialLoad] = useState(true);
   // Track which subscription key has delivered data. When dependencies change,
   // this goes stale and isTaskLoading derives to true until the callback fires.
   const [loadedKey, setLoadedKey] = useState<string | null>(null);
@@ -168,7 +167,6 @@ export default function Home() {
         }
 
         initialLoadRef.current = false;
-        setInitialLoad(false);
       }
     );
 

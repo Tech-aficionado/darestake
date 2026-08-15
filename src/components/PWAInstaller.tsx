@@ -41,19 +41,23 @@ export function PWAInstaller() {
       }
     };
 
-    window.addEventListener("beforeinstallprompt", handler);
-
-    // Listen for successful install
-    window.addEventListener("appinstalled", () => {
+    // Named so the cleanup can actually remove it. Previously this was an
+    // inline arrow that was never removed, so adding isInstalled to the
+    // dependency array would have leaked one listener per re-run.
+    const installedHandler = () => {
       setIsInstalled(true);
       setShowBanner(false);
       setDeferredPrompt(null);
-    });
+    };
+
+    window.addEventListener("beforeinstallprompt", handler);
+    window.addEventListener("appinstalled", installedHandler);
 
     return () => {
       window.removeEventListener("beforeinstallprompt", handler);
+      window.removeEventListener("appinstalled", installedHandler);
     };
-  }, []);
+  }, [isInstalled]);
 
   const handleInstall = useCallback(async () => {
     if (!deferredPrompt) return;

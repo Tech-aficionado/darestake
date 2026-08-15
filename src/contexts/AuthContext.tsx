@@ -84,6 +84,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // In PWA standalone mode: navigate to dedicated /login page
     // That page handles redirect flow in the same window
     if (isPWAStandalone()) {
+      // Deliberate hard navigation, NOT router.push(). The /login page drives
+      // signInWithRedirect, which needs the whole PWA window to leave for
+      // Google and come back. A client-side soft navigation keeps the SPA
+      // document alive and reintroduces the standalone-mode auth failure this
+      // dedicated page exists to work around.
+      // eslint-disable-next-line @next/next/no-location-assign-relative-destination
       window.location.href = "/login";
       return;
     }
@@ -129,6 +135,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       // If popup blocked, go to login page as fallback
       if (firebaseError.code === "auth/popup-blocked") {
+        // Same reasoning as the standalone branch above: the redirect flow
+        // needs a real document navigation, so this must not become
+        // router.push().
+        // eslint-disable-next-line @next/next/no-location-assign-relative-destination
         window.location.href = "/login";
         return;
       }

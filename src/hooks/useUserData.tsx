@@ -92,7 +92,7 @@ export function UserDataProvider({ children }: { children: ReactNode }) {
         partnerUnsubRef.current = null;
       }
     };
-  }, [userData?.pairedWith, userData?.pairId]);
+  }, [userData?.pairedWith, userData?.pairId, userData?.uid, userData?.displayName]);
 
   // Manual refresh — triggers re-read via subscription (mostly a no-op now,
   // but kept for imperative use cases like after completeTask)

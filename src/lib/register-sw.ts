@@ -17,8 +17,8 @@ export function registerServiceWorker() {
   if (typeof window === "undefined") return;
   if (!("serviceWorker" in navigator)) return;
 
-  // Register on all pages (needed for notifications to work everywhere)
-  const shouldRegister = true;
+  // Registered on all pages unconditionally - notifications need the worker
+  // available everywhere, not just on app routes.
 
   window.addEventListener("load", async () => {
     try {
