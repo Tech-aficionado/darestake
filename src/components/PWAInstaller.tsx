@@ -13,12 +13,15 @@ export function PWAInstaller() {
   const [deferredPrompt, setDeferredPrompt] =
     useState<BeforeInstallPromptEvent | null>(null);
   const [showBanner, setShowBanner] = useState(false);
-  const [isInstalled, setIsInstalled] = useState(false);
+  const [isInstalled, setIsInstalled] = useState(
+    // Detect standalone mode eagerly so we never flash the banner.
+    // Safe: "use client" components hydrate on the client where window exists.
+    () => typeof window !== "undefined" && window.matchMedia("(display-mode: standalone)").matches
+  );
 
   useEffect(() => {
-    // Check if already installed (standalone mode)
-    if (window.matchMedia("(display-mode: standalone)").matches) {
-      setIsInstalled(true);
+    // If already installed, nothing to set up
+    if (isInstalled) {
       return;
     }
 

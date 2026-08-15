@@ -45,6 +45,28 @@ export default function LoginPage() {
     return () => unsubscribe();
   }, [router]);
 
+  // Step 3: Trigger the actual auth (declared before the redirect-handling
+  // effect so the React Compiler sees it as already-defined when referenced).
+  const triggerAuth = useCallback(async () => {
+    setStatus("redirecting");
+
+    try {
+      // REDIRECT ONLY -- never popup. This page is the path an installed PWA
+      // (Android standalone) is deliberately routed to, and there a popup does
+      // not reliably *reject*: Cross-Origin-Opener-Policy blocks the
+      // window.closed polling Firebase uses to detect a closed popup, so the
+      // signInWithPopup promise can hang forever instead of throwing. A
+      // popup-then-catch-then-redirect pattern therefore never reaches the
+      // redirect, and the user is stranded on the spinner.
+      await signInWithRedirect(auth, googleProvider);
+    } catch (error: unknown) {
+      const firebaseError = error as { code?: string; message?: string };
+      console.error("Auth trigger error:", firebaseError);
+      setStatus("error");
+      setErrorMsg(`${firebaseError.code || "unknown"}: ${firebaseError.message || ""}`);
+    }
+  }, []);
+
   // Step 2: Handle redirect result (runs when returning from Google)
   useEffect(() => {
     async function handleRedirect() {
@@ -82,27 +104,6 @@ export default function LoginPage() {
     
     handleRedirect();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // Step 3: Trigger the actual auth
-  const triggerAuth = useCallback(async () => {
-    setStatus("redirecting");
-
-    try {
-      // REDIRECT ONLY -- never popup. This page is the path an installed PWA
-      // (Android standalone) is deliberately routed to, and there a popup does
-      // not reliably *reject*: Cross-Origin-Opener-Policy blocks the
-      // window.closed polling Firebase uses to detect a closed popup, so the
-      // signInWithPopup promise can hang forever instead of throwing. A
-      // popup-then-catch-then-redirect pattern therefore never reaches the
-      // redirect, and the user is stranded on the spinner.
-      await signInWithRedirect(auth, googleProvider);
-    } catch (error: unknown) {
-      const firebaseError = error as { code?: string; message?: string };
-      console.error("Auth trigger error:", firebaseError);
-      setStatus("error");
-      setErrorMsg(`${firebaseError.code || "unknown"}: ${firebaseError.message || ""}`);
-    }
   }, []);
 
   return (
