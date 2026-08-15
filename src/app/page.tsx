@@ -3,6 +3,7 @@
 import { motion, useInView } from "framer-motion";
 import { useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { useAuth } from "@/contexts/AuthContext";
 import { Logo } from "@/components/ui";
 import {
@@ -406,9 +407,23 @@ export default function LandingPage() {
       <footer className="border-t border-white/[0.06] py-8 px-6">
         <div className="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
           <span className="text-sm text-white/30">
-            DareStake © 2024 — Built for accountability
+            DareStake © 2026 — Built for accountability
           </span>
-          <span className="text-xl font-black text-[#FF6B35]">DareStake</span>
+          <div className="flex items-center gap-5">
+            <Link
+              href="/privacy"
+              className="text-sm text-white/30 hover:text-white/70 transition-colors"
+            >
+              Privacy
+            </Link>
+            <Link
+              href="/terms"
+              className="text-sm text-white/30 hover:text-white/70 transition-colors"
+            >
+              Terms
+            </Link>
+            <span className="text-xl font-black text-[#FF6B35]">DareStake</span>
+          </div>
         </div>
       </footer>
     </div>
