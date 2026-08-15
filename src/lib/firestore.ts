@@ -6,7 +6,6 @@ import {
   setDoc,
   addDoc,
   updateDoc,
-  deleteDoc,
   query,
   where,
   orderBy,
@@ -28,18 +27,13 @@ import {
   FINE_LIMIT_MIN,
   FINE_LIMIT_MAX,
 } from "./firestore-schema";
-import { todayIST, yesterdayIST, daysAgoIST, endOfDayIST } from "./ist";
+import { todayIST, daysAgoIST } from "./ist";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 // IST date math lives in ./ist -- see that file for why the old inline
 // helpers (which added getTimezoneOffset on top of the IST offset) were wrong.
 const getTodayIST = todayIST;
-const getYesterdayIST = yesterdayIST;
-
-function getMidnightIST(dateStr: string): Timestamp {
-  return Timestamp.fromDate(endOfDayIST(dateStr));
-}
 
 function generateCode(): string {
   const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // no ambiguous I/O/0/1

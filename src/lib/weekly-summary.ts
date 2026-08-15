@@ -120,6 +120,10 @@ export function generateWeeklySummary(stats: WeeklyStats, userName: string): str
     message += ` 🔥 ${currentStreak}-day streak!`;
   }
 
+  if (bestDay && completed > 0) {
+    message += ` Strongest on ${bestDay}s.`;
+  }
+
   if (worstDay && failed > 0) {
     message += ` Watch out for ${worstDay}s.`;
   }

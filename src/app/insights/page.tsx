@@ -12,7 +12,6 @@ import {
   Trophy,
   Flame,
   TrendingDown,
-  TrendingUp,
   Crown,
 } from "lucide-react";
 

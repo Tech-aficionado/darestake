@@ -435,6 +435,10 @@ const cases = [
       body: JSON.stringify({
         source: { files: [{ name: "firestore.rules", content: source }] },
         testSuite: {
+          // __name is destructured purely to OMIT it from the serialised
+          // payload. It is unused on purpose - deleting it would leak the
+          // field back into the request body.
+          // eslint-disable-next-line @typescript-eslint/no-unused-vars
           testCases: cases.map(({ __name, ...rest }) => rest),
         },
       }),

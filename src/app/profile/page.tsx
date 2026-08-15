@@ -274,6 +274,11 @@ export default function ProfilePage() {
               className="mb-4"
             >
               {profile.photoURL ? (
+                // Google account avatar at 96px. next/image would need a
+                // remotePatterns entry for lh3.googleusercontent.com and would
+                // route it through Vercel's billed image optimiser for no real
+                // LCP gain at this size.
+                // eslint-disable-next-line @next/next/no-img-element
                 <img
                   src={profile.photoURL}
                   alt={profile.displayName}
@@ -363,6 +368,8 @@ export default function ProfilePage() {
                 <div className="flex items-center gap-3 mb-4">
                   <div className="relative">
                     {profile.partner.photoURL ? (
+                      // Same as the avatar above: 48px Google-hosted image.
+                      // eslint-disable-next-line @next/next/no-img-element
                       <img
                         src={profile.partner.photoURL}
                         alt={profile.partner.displayName}

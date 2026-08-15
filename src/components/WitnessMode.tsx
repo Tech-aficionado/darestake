@@ -1,9 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 import { DailyTask } from "@/lib/firestore-schema";
-import { disputeTask, resolveDispute, completeTask } from "@/lib/firestore";
+import { disputeTask, resolveDispute } from "@/lib/firestore";
 import PhotoProof from "@/components/PhotoProof";
 import { Eye, ShieldCheck, AlertTriangle } from "lucide-react";
 
@@ -76,6 +76,10 @@ export default function WitnessMode({ task, currentUserId, onUpdate }: WitnessMo
           taskId={task.id}
           taskTitle={task.title}
           onProofUploaded={async () => {
+            // Re-entry guard: onProofUploaded can fire again before the first
+            // resolveDispute settles (a re-upload or double-tap), which would
+            // resolve the same dispute twice.
+            if (resolving) return;
             setResolving(true);
             try {
               await resolveDispute(task.id);
@@ -89,6 +93,9 @@ export default function WitnessMode({ task, currentUserId, onUpdate }: WitnessMo
             }
           }}
         />
+        {resolving && (
+          <p className="text-xs text-white/50 mt-2">Verifying proof…</p>
+        )}
       </motion.div>
     );
   }

@@ -8,7 +8,7 @@ import { getPartnerTodayTask, getTodayTask, createTask } from "@/lib/firestore";
 import { sendLocalNotification } from "@/lib/notifications";
 import { todayIST, nextMidnightIST, istTimeToInstant } from "@/lib/ist";
 import { DailyTask } from "@/lib/firestore-schema";
-import { dareCategories, DareCategory, DareTemplate } from "@/lib/dare-templates";
+import { dareCategories, DareTemplate } from "@/lib/dare-templates";
 import { Timestamp } from "firebase/firestore";
 import { GlassCard, GoldButton, BottomNav } from "@/components/ui";
 import { Send, AlertCircle, CheckCircle2, Users, User, Sparkles, Clock } from "lucide-react";

@@ -115,6 +115,10 @@ export default function PhotoProof({
           </svg>
           <span className="text-xs text-emerald-300 font-medium">Proof ✓</span>
           {thumbnailUrl && (
+            // Google Drive thumbnail at 24px. Drive URLs are not a stable
+            // optimiser origin (host and signing can change), so routing them
+            // through next/image would add a failure mode for no gain here.
+            // eslint-disable-next-line @next/next/no-img-element
             <img
               src={thumbnailUrl}
               alt="Proof"
@@ -141,6 +145,8 @@ export default function PhotoProof({
                 onClick={(e) => e.stopPropagation()}
               >
                 {thumbnailUrl && (
+                  // Same Drive-hosted source as the thumbnail above.
+                  // eslint-disable-next-line @next/next/no-img-element
                   <img
                     src={thumbnailUrl}
                     alt="Task proof"
