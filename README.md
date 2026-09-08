@@ -199,7 +199,7 @@ src/
     fine-range.test.ts
     notifications.ts   permission, delivery, deadline reminders
 scripts/
-  test-rules.js        security-rules test suite
+  test-rules.mjs        security-rules test suite
 firestore.rules        pair-scoped authorization
 firestore.indexes.json composite indexes
 public/sw.js           manual service worker (PWA + notifications)
