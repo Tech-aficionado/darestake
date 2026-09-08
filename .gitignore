@@ -49,5 +49,8 @@ next-env.d.ts
 # local dev logs
 dev-out.log
 
+# local authentication/test artifacts
+temp_auth.json
+
 # agent-local settings
 .kiro/

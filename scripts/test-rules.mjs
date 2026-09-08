@@ -30,16 +30,13 @@ async function getAccessToken() {
   const refresh = json.tokens && json.tokens.refresh_token;
   if (!refresh) throw new Error("No refresh token in firebase-tools config");
 
-  // These are the PUBLIC OAuth "installed app" client credentials shipped in
-  // the open-source firebase-tools package -- they identify the CLI, they do
-  // not grant access on their own. The actual credential is your local refresh
-  // token above, which never leaves your machine. Overridable via env so this
-  // file carries no credential-shaped literals.
-  const clientId =
-    process.env.FIREBASE_CLI_CLIENT_ID ||
-    "563584335869-fgrhgmd47bqnekij5i8b5pr03ho849e6.apps.googleusercontent.com";
-  const clientSecret =
-    process.env.FIREBASE_CLI_CLIENT_SECRET || "j9iVZfS8kkCEFUPaAeJV0sAi";
+  const clientId = process.env.FIREBASE_CLI_CLIENT_ID;
+  const clientSecret = process.env.FIREBASE_CLI_CLIENT_SECRET;
+  if (!clientId || !clientSecret) {
+    throw new Error(
+      "Set FIREBASE_CLI_CLIENT_ID and FIREBASE_CLI_CLIENT_SECRET before running rules tests"
+    );
+  }
 
   const res = await fetch("https://oauth2.googleapis.com/token", {
     method: "POST",
